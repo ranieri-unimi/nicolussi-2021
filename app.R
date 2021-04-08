@@ -1,21 +1,23 @@
 library(shiny)
-#library(shinythemes)
+library(shinythemes)
 #library(tidyverse) # ggplot
 library(rvest)
 library(igraph)
 library(visNetwork)
 
+# const and utils
+
 uri_site = 'https://www.unimi.it'
 uri_prof = '/it/ugov/person/'
 uri_exam = '/it/corsi/insegnamenti-dei-corsi-di-laurea/'
-call_sleep= 0.05
+call_sleep= 0.15
 
 pure = function(x) {
     return(tolower(gsub("[^a-zA-Z]", "", x)))
 }
 
 # breadth first search web scaper 
-bfs_prof = function(root, max_depth){
+bfs_prof = function(root, max_depth, delete_self = 1){
     
     #link model
     links = data.frame(
@@ -24,6 +26,7 @@ bfs_prof = function(root, max_depth){
         year = character(),
         course  = character(),
         title  = character(),
+        hours = character(),
         stringsAsFactors=FALSE
     )
     
@@ -47,47 +50,57 @@ bfs_prof = function(root, max_depth){
             id_link = i%>% html_attr('href')
             if(!(id_link %in% walked)){
                 walked = c(walked, id_link)
-                
-                # extract coo-profs
                 course_page = read_html(paste(uri_site, id_link, sep=''))
                 Sys.sleep(call_sleep)
-                profs_list = course_page %>% html_nodes(".rubrica") %>% html_nodes("a") %>% html_attr('href')
                 
-                # queue coo-profs
-                for (j in profs_list){
-                    if(!(j %in% discovered)) {
-                        discovered = c(discovered, j)
-                        queued = c(queued, j)
-                    }
-                    # add link
-                    if(j != id_prof){
-                        data_course = tail(str_split(id_link, "/")[[1]], 2)
-                        elem = c(
-                            tail(str_split(id_prof, "/")[[1]], n=1),
-                            tail(str_split(j, "/")[[1]], n=1),
-                            data_course[1],
-                            data_course[2],
-                            paste(data_course[2], data_course[1], sep ='-')
-                        )
-                        links = rbind(links, elem)
+                # extract hours, coo-profs, year, name
+                hours = course_page %>% html_nodes(".views-label-ore-totali") %>% html_text()
+                data_course = tail(strsplit(id_link, "/")[[1]], 2)
+                profs_list = course_page %>% html_nodes(".rubrica") %>% html_nodes("a") %>% html_attr('href')
+            
+                if(delete_self<length(profs_list)){
+                    
+                    # queue coo-profs
+                    for (tmpj in 1:(length(profs_list)-delete_self)){
+                        j = profs_list[tmpj]
+                        if(!(j %in% discovered)) {
+                            discovered = c(discovered, j)
+                            queued = c(queued, j)
+                        }
+                        
+                        # generate links
+                        for(tmpk in (tmpj+delete_self):length(profs_list)){
+                            k = profs_list[tmpk]
+                            elem = c(
+                                tail(strsplit(j, "/")[[1]], n=1),
+                                tail(strsplit(k, "/")[[1]], n=1),
+                                data_course[1],
+                                data_course[2],
+                                paste(data_course[2], data_course[1], sep ='-'),
+                                hours
+                            )
+                            links = rbind(links, elem)
+                        }
                     }
                 }
             }
-            
         }
         max_depth = max_depth - 1
+        print('turn')
     }
+    print('closed')
     return(links)
 }
 
+# vis.js stylish
 paint_net = function(g){
     # gen vis
     vis = toVisNetworkData(g)
-    names(vis$edges) =  c("from", "to", "year",'course' ,'title')
+    names(vis$edges) =  c("from", "to", "year",'course', 'title', 'hours')
     
     # beauty nodes
     vis$nodes$shape = "dot"
-    vis$nodes$shadow = TRUE # Nodes will drop shadow
+    vis$nodes$shadow = T # Nodes will drop shadow
     vis$nodes$title = vis$nodes$id # Text on click
     vis$nodes$label = vis$nodes$id # Node label
     vis$nodes$size = vis$nodes$value # Node size
@@ -106,6 +119,7 @@ paint_net = function(g){
     vis$edges$title = vis$edges$course # Text on click
     vis$edges$label = vis$edges$year # Node label
     
+    print('almost drawed')
     img = visNetwork(
         vis$nodes,
         vis$edges,
@@ -116,13 +130,14 @@ paint_net = function(g){
         submain="Discover your past collaboration whith other professors",
         footer= "Zoom, click and drag to reorder nodes. Hold links to see details"
     )
+    print('drawed')
     return(img)
 }
 
 ui = fluidPage(
-    #theme = shinytheme("cerulean"),
+    theme = shinytheme("cerulean"),
     navbarPage(
-        "UniMi Stats",
+        "UniMiLy - UniMi FamiLy-tree",
         tabPanel(
             "Home",
             sidebarPanel(
@@ -136,7 +151,7 @@ ui = fluidPage(
                     max = 8,
                     value = 4
                 ),
-                tags$h6("1 deep ~ 20 sec"),
+                tags$h6("1 deep ~ 10 sec"),
                 actionButton("btnGo", "Go!")
             ),
             mainPanel(
@@ -144,7 +159,7 @@ ui = fluidPage(
             )
         ),
         tabPanel(
-            "Navbar 2",
+            "Othe stats",
             titlePanel("Old Faithful Geyser Data"),
             sidebarLayout(
                 sidebarPanel(
@@ -169,9 +184,10 @@ server = function(input, output) {
     output$network = renderVisNetwork({
         
         # first attempt in local data
-        links = readRDS("links.Rda")
+        links = readRDS("localdata/cache.Rda")
         input$btnGo
         
+        # parametered scraping
         if(input$btnGo > 0) {
             input$btnGo
             links = bfs_prof(paste(
@@ -179,6 +195,10 @@ server = function(input, output) {
                 pure(isolate(input$txtSurname)),
                 sep = "-"),
                 isolate(input$sldDeep))
+            
+            # who knows
+            print('saved')
+            saveRDS(links, "localdata/cache.Rda")
         }
         
         # bypass with igraph for metrics
@@ -191,3 +211,5 @@ server = function(input, output) {
 }
 
 shinyApp(ui = ui, server = server)
+
+#runGitHub('unimily', 'ranieri-unimi', 'main')
