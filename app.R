@@ -120,7 +120,7 @@ paint_net = function(g){
 }
 
 ui = fluidPage(
-    theme = shinytheme("cerulean"),
+    #theme = shinytheme("cerulean"),
     navbarPage(
         "UniMi Stats",
         tabPanel(
@@ -191,7 +191,3 @@ server = function(input, output) {
 }
 
 shinyApp(ui = ui, server = server)
-
-
-runGitHub('nicolussi-2021', 'ranieri-unimi', 'main')
-
