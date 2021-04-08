@@ -86,9 +86,7 @@ bfs_prof = function(root, max_depth, delete_self = 1){
             }
         }
         max_depth = max_depth - 1
-        print('turn')
     }
-    print('closed')
     return(links)
 }
 
@@ -116,10 +114,9 @@ paint_net = function(g){
     #vis$edges$arrows = "middle" # arrows: 'from', 'to', or 'middle'
     vis$edges$smooth = T # should the edges be curved?
     vis$edges$shadow = T # edge shadow
-    vis$edges$title = vis$edges$course # Text on click
+    vis$edges$title = paste(vis$edges$course,'<br>' ,vis$edges$hours,'hours') # Text on click
     vis$edges$label = vis$edges$year # Node label
     
-    print('almost drawed')
     img = visNetwork(
         vis$nodes,
         vis$edges,
@@ -130,7 +127,6 @@ paint_net = function(g){
         submain="Discover your past collaboration whith other professors",
         footer= "Zoom, click and drag to reorder nodes. Hold links to see details"
     )
-    print('drawed')
     return(img)
 }
 
@@ -149,9 +145,9 @@ ui = fluidPage(
                     "How deep shoud scraper search?",
                     min = 1,
                     max = 8,
-                    value = 4
+                    value = 2
                 ),
-                tags$h6("1 deep ~ 10 sec"),
+                tags$h6("1 notch of deepness ~ 6 sec"),
                 actionButton("btnGo", "Go!")
             ),
             mainPanel(
@@ -197,7 +193,6 @@ server = function(input, output) {
                 isolate(input$sldDeep))
             
             # who knows
-            print('saved')
             saveRDS(links, "localdata/cache.Rda")
         }
         
