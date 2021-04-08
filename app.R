@@ -4,16 +4,27 @@ library(shinythemes)
 library(rvest)
 library(igraph)
 library(visNetwork)
+library(plotly)
+
+gen_complete_from('federica-nicolussi')
 
 # const and utils
-
 uri_site = 'https://www.unimi.it'
 uri_prof = '/it/ugov/person/'
 uri_exam = '/it/corsi/insegnamenti-dei-corsi-di-laurea/'
-call_sleep= 0.15
+call_sleep= 0.45
+
+complete = readRDS("localdata/cache.Rda")
+umanip = distinct(complete[c('to','year','hours','title')])[c('to','year','hours')]
+all_prof_list = distinct(umanip['to'])[[1]]
 
 pure = function(x) {
     return(tolower(gsub("[^a-zA-Z]", "", x)))
+}
+
+gen_complete_from = function(root){
+    manip = bfs_prof(root, -1, 0)
+    saveRDS(manip, "localdata/complete.Rda")
 }
 
 # breadth first search web scaper 
@@ -35,7 +46,7 @@ bfs_prof = function(root, max_depth, delete_self = 1){
     queued = c(paste(uri_prof, root, sep=''))
     
     # pop a prof
-    while(length(queued) > 0 && max_depth > 0) {
+    while(length(queued) > 0 && max_depth != 0) {
         id_prof = queued[[1]]
         queued = queued[-1]
         
@@ -86,7 +97,9 @@ bfs_prof = function(root, max_depth, delete_self = 1){
             }
         }
         max_depth = max_depth - 1
+        print(max_depth)
     }
+    names(links) =  c("from", "to", "year",'course', 'title', 'hours')
     return(links)
 }
 
@@ -94,7 +107,7 @@ bfs_prof = function(root, max_depth, delete_self = 1){
 paint_net = function(g){
     # gen vis
     vis = toVisNetworkData(g)
-    names(vis$edges) =  c("from", "to", "year",'course', 'title', 'hours')
+    # names(vis$edges) =  c("from", "to", "year",'course', 'title', 'hours')
     
     # beauty nodes
     vis$nodes$shape = "dot"
@@ -130,12 +143,61 @@ paint_net = function(g){
     return(img)
 }
 
+paint_viol = function(df, alfa, beta){
+    fig = df %>% plot_ly(type = 'violin') 
+    fig = fig %>% add_trace(
+        x = ~hours[df$to == alfa],
+        y = ~year[df$to == alfa],
+        legendgroup = alfa,
+        scalegroup = alfa,
+        name = alfa,
+        side = 'negative',
+        box = list(
+            visible = T
+        ),
+        meanline = list(
+            visible = T
+        ),
+        color = I("orange")
+    ) 
+    fig = fig %>% add_trace(
+        x = ~hours[df$to == beta],
+        y = ~year[df$to == beta],
+        legendgroup = beta,
+        scalegroup = beta,
+        name = beta,
+        side = 'positive',
+        box = list(
+            visible = T
+        ),
+        meanline = list(
+            visible = T
+        ),
+        color = I("purple")
+    ) 
+    
+    fig = fig %>% layout(
+        xaxis = list(
+            title = "teaching hours of the course"  
+        ),
+        yaxis = list(
+            title = "year of the course",
+            zeroline = F
+        ),
+        violingap = 0,
+        violingroupgap = 0,
+        violinmode = 'overlay'
+    )
+    
+    return(fig)
+}
+
 ui = fluidPage(
     theme = shinytheme("cerulean"),
     navbarPage(
         "UniMiLy - UniMi FamiLy-tree",
         tabPanel(
-            "Home",
+            "Explore family graph",
             sidebarPanel(
                 tags$h4("Scrape a new professor:"),
                 textInput("txtName", "Name:", "federica"),
@@ -155,25 +217,22 @@ ui = fluidPage(
             )
         ),
         tabPanel(
-            "Othe stats",
-            titlePanel("Old Faithful Geyser Data"),
+            "Compare profile over years",
+            titlePanel("Compare exam hours preference between professors"),
             sidebarLayout(
                 sidebarPanel(
-                    sliderInput(
-                        "bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30
-                    )
+                    selectInput("sltAlfa", "Select a professor..", choices=all_prof_list),
+                    selectInput("sltBeta", "..and another one:", choices = all_prof_list)
+                                #choices=colnames(all_prof_list)
                 ),
                 mainPanel(
-                    plotOutput("distPlot")
+                    plotlyOutput("pltViolin")
                 )
             )
         )
     )
-) 
+)
+
 
 server = function(input, output) {
     
@@ -193,6 +252,7 @@ server = function(input, output) {
                 isolate(input$sldDeep))
             
             # who knows
+            
             saveRDS(links, "localdata/cache.Rda")
         }
         
@@ -203,6 +263,10 @@ server = function(input, output) {
         paint_net(g)
     })
     
+    output$pltViolin = renderPlotly({
+        # first attempt with first value of list doubled
+        paint_viol(umanip, input$sltAlfa, input$sltBeta)
+    })
 }
 
 shinyApp(ui = ui, server = server)
