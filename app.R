@@ -6,25 +6,18 @@ library(igraph)
 library(visNetwork)
 library(plotly)
 
-gen_complete_from('federica-nicolussi')
-
 # const and utils
 uri_site = 'https://www.unimi.it'
 uri_prof = '/it/ugov/person/'
 uri_exam = '/it/corsi/insegnamenti-dei-corsi-di-laurea/'
-call_sleep= 0.45
+call_sleep = 0.45
 
-complete = readRDS("localdata/cache.Rda")
-umanip = distinct(complete[c('to','year','hours','title')])[c('to','year','hours')]
-all_prof_list = distinct(umanip['to'])[[1]]
+data_cache = readRDS("localdata/whole.Rda")
+prof_history = distinct(data_cache[c('to','year','hours','title')])[c('to','year','hours')]
+all_prof_list = distinct(prof_history['to'])[[1]]
 
 pure = function(x) {
     return(tolower(gsub("[^a-zA-Z]", "", x)))
-}
-
-gen_complete_from = function(root){
-    manip = bfs_prof(root, -1, 0)
-    saveRDS(manip, "localdata/complete.Rda")
 }
 
 # breadth first search web scaper 
@@ -68,7 +61,7 @@ bfs_prof = function(root, max_depth, delete_self = 1){
                 hours = course_page %>% html_nodes(".views-label-ore-totali") %>% html_text()
                 data_course = tail(strsplit(id_link, "/")[[1]], 2)
                 profs_list = course_page %>% html_nodes(".rubrica") %>% html_nodes("a") %>% html_attr('href')
-            
+                
                 if(delete_self<length(profs_list)){
                     
                     # queue coo-profs
@@ -97,7 +90,9 @@ bfs_prof = function(root, max_depth, delete_self = 1){
             }
         }
         max_depth = max_depth - 1
-        print(max_depth)
+        
+        # who knows
+        # saveRDS(links, "localdata/cache.Rda")
     }
     names(links) =  c("from", "to", "year",'course', 'title', 'hours')
     return(links)
@@ -107,7 +102,7 @@ bfs_prof = function(root, max_depth, delete_self = 1){
 paint_net = function(g){
     # gen vis
     vis = toVisNetworkData(g)
-    # names(vis$edges) =  c("from", "to", "year",'course', 'title', 'hours')
+    names(vis$edges) =  c("from", "to", "year",'course', 'title', 'hours')
     
     # beauty nodes
     vis$nodes$shape = "dot"
@@ -124,7 +119,6 @@ paint_net = function(g){
     # beauty edges
     vis$edges$width = 2
     vis$edges$color = "gray" # line color
-    #vis$edges$arrows = "middle" # arrows: 'from', 'to', or 'middle'
     vis$edges$smooth = T # should the edges be curved?
     vis$edges$shadow = T # edge shadow
     vis$edges$title = paste(vis$edges$course,'<br>' ,vis$edges$hours,'hours') # Text on click
@@ -223,7 +217,7 @@ ui = fluidPage(
                 sidebarPanel(
                     selectInput("sltAlfa", "Select a professor..", choices=all_prof_list),
                     selectInput("sltBeta", "..and another one:", choices = all_prof_list)
-                                #choices=colnames(all_prof_list)
+                    #choices=colnames(all_prof_list)
                 ),
                 mainPanel(
                     plotlyOutput("pltViolin")
@@ -250,10 +244,6 @@ server = function(input, output) {
                 pure(isolate(input$txtSurname)),
                 sep = "-"),
                 isolate(input$sldDeep))
-            
-            # who knows
-            
-            saveRDS(links, "localdata/cache.Rda")
         }
         
         # bypass with igraph for metrics
@@ -265,7 +255,7 @@ server = function(input, output) {
     
     output$pltViolin = renderPlotly({
         # first attempt with first value of list doubled
-        paint_viol(umanip, input$sltAlfa, input$sltBeta)
+        paint_viol(data_cache, input$sltAlfa, input$sltBeta)
     })
 }
 
