@@ -1,4 +1,7 @@
-renv::restore()
+# cose cosose che non cosano le cose
+list_of_packages = c("shiny","shinythemes",'rvest','igraph','visNetwork','plotly')
+lapply(list_of_packages,function(x) if(!require(x,character.only = TRUE)) install.packages(x))
+
 library(shiny)
 library(shinythemes)
 library(rvest)
