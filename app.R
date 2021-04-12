@@ -1,5 +1,6 @@
+renv::restore()
 library(shiny)
-#library(shinythemes)
+library(shinythemes)
 library(rvest)
 library(igraph)
 library(visNetwork)
@@ -187,7 +188,7 @@ paint_viol = function(df, alfa, beta){
 }
 
 ui = fluidPage(
-    #theme = shinytheme("cerulean"),
+    theme = shinytheme("cerulean"),
     navbarPage(
         "UniMiLy - UniMi FamiLy-tree",
         tabPanel(
