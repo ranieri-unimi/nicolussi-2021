@@ -1,6 +1,5 @@
 library(shiny)
 library(shinythemes)
-#library(tidyverse) # ggplot
 library(rvest)
 library(igraph)
 library(visNetwork)
@@ -10,9 +9,9 @@ library(plotly)
 uri_site = 'https://www.unimi.it'
 uri_prof = '/it/ugov/person/'
 uri_exam = '/it/corsi/insegnamenti-dei-corsi-di-laurea/'
-call_sleep = 0.45
+call_sleep = 0.25
 
-data_cache = readRDS("localdata/whole.Rda")
+data_cache = readRDS("localdata/sample.Rda")
 prof_history = distinct(data_cache[c('to','year','hours','title')])[c('to','year','hours')]
 all_prof_list = distinct(prof_history['to'])[[1]]
 
@@ -92,7 +91,8 @@ bfs_prof = function(root, max_depth, delete_self = 1){
         max_depth = max_depth - 1
         
         # who knows
-        # saveRDS(links, "localdata/cache.Rda")
+        print(max_depth)
+
     }
     names(links) =  c("from", "to", "year",'course', 'title', 'hours')
     return(links)
@@ -203,7 +203,7 @@ ui = fluidPage(
                     max = 8,
                     value = 2
                 ),
-                tags$h6("1 notch of deepness ~ 6 sec"),
+                tags$h6("1 notch of deepness ~ 10 sec"),
                 actionButton("btnGo", "Go!")
             ),
             mainPanel(
@@ -260,5 +260,3 @@ server = function(input, output) {
 }
 
 shinyApp(ui = ui, server = server)
-
-#runGitHub('unimily', 'ranieri-unimi', 'main')
